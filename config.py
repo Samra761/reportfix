@@ -4,7 +4,9 @@ import os
 # ---------------------------------------------------------------- LLM
 LLM_MODEL = os.environ.get("REPORTFIX_MODEL", "claude-haiku-5-5")
 LLM_TIMEOUT_SECONDS = 15
-DB_PATH = os.environ.get("REPORTFIX_DB", os.path.join(os.path.dirname(__file__), "reportfix.db"))
+# On Vercel the code folder is read-only; /tmp is writable but temporary (data resets on cold starts).
+DB_PATH = os.environ.get("REPORTFIX_DB") or ("/tmp/reportfix.db" if os.environ.get("VERCEL")
+                                            else os.path.join(os.path.dirname(__file__), "reportfix.db"))
 
 # ---------------------------------------------------------------- Departments
 DEPARTMENTS = ["EE", "CSE", "IS", "Library", "Cafeteria", "Labs"]

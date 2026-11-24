@@ -32,6 +32,13 @@ In a second terminal: `python tests/attack_cases.py` runs 42 attack cases agains
 
 The top bar always offers three things: switch to any user, **New student**, and **Reset all data**. Reset reseeds five students with different trust levels (Ayesha 90, Bilal 65, Sara 50, Hamza 30, Zain 10), one staff member per department, and one admin.
 
+## Deploy to Vercel (optional)
+
+1. On vercel.com, choose **Add New → Project** and import this repo. Vercel detects FastAPI from `app.py` + `requirements.txt` and serves `public/index.html` at `/`. No settings are needed.
+2. Optionally, add `ANTHROPIC_API_KEY` under **Settings → Environment Variables**, then redeploy.
+
+**Caveat:** serverless functions have no permanent disk, so SQLite lives in `/tmp`. Data resets on cold starts, and parallel instances don't share data. It's fine for showing a link, but run the live demo locally.
+
 ## Files
 
 | File | What it is |
@@ -42,7 +49,7 @@ The top bar always offers three things: switch to any user, **New student**, and
 | `db.py` | SQLite schema + seed |
 | `app.py` | FastAPI endpoints (identity = `X-User-Id` header set by the user switcher) |
 | `docs/images/` | Screenshots used in this README |
-| `static/index.html` | Plain HTML + vanilla JS; all user text is rendered with `textContent` (no XSS) |
+| `public/index.html` | Plain HTML + vanilla JS; all user text is rendered with `textContent` (no XSS) |
 
 ## What the AI does vs what code does
 

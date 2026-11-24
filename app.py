@@ -15,7 +15,7 @@ import db
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 app = FastAPI(title="ReportFix")
-STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "index.html")
+STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "index.html")  # Vercel serves public/ itself
 
 
 async def _body(request):
