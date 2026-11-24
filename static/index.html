@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ReportFix</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; font-size: 14px; }
+  #top { position: sticky; top: 0; background: #eee; border-bottom: 1px solid #999; padding: 8px; z-index: 5; }
+  #top * { margin-right: 6px; }
+  main { padding: 10px; max-width: 1000px; }
+  section { border: 1px solid #ccc; padding: 8px; margin-bottom: 12px; }
+  h2 { margin: 0 0 6px; font-size: 16px; }
+  .card { border: 1px solid #bbb; padding: 6px; margin: 6px 0; }
+  .card.critical { border-left: 6px solid #c00; } .card.high { border-left: 6px solid #e80; }
+  .card.medium { border-left: 6px solid #cc0; } .card.low { border-left: 6px solid #9c9; }
+  .meta span { margin-right: 12px; } .muted { color: #666; } .err { color: #b00; } .ok { color: #070; }
+  textarea { width: 100%; height: 60px; } button { margin: 2px; }
+  .conf { background: #fdf0f6; }
+</style>
+</head>
+<body>
+<div id="top">
+  <b>ReportFix</b>
+  User: <select id="userSel"></select>
+  <button id="newStudent">New student</button>
+  <button id="resetAll">Reset all data</button>
+  <span id="whoami"></span>
+  <span id="aiMode" class="muted"></span>
+</div>
+<main id="main"></main>
+<div id="msg" style="position:fixed;bottom:0;left:0;right:0;background:#ffe;padding:6px;border-top:1px solid #cc9"></div>
+<script>
+// All user text is inserted with textContent (never innerHTML): reports are data, including in the browser.
+let USERS = [], ME = null, CFG = null;
+const openDetails = new Set();
+
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+async function api(method, path, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (ME) headers["X-User-Id"] = String(ME.id);
+  const r = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
+  return data;
+}
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else if (k === "text") e.textContent = v;
+    else e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+  return e;
+}
+function say(text, isErr) { const m = document.getElementById("msg"); m.textContent = text; m.className = isErr ? "err" : "ok"; }
+async function act(fn) { try { const r = await fn(); if (r && r.message) say(r.message); await refresh(); return r; } catch (e) { say("Error: " + e.message, true); } }
+
+// ---------------- top bar
+async function loadUsers(selectId) {
+  USERS = await api("GET", "/api/users");
+  const sel = document.getElementById("userSel"); sel.textContent = "";
+  for (const role of ["student", "staff", "admin"]) {
+    const g = el("optgroup", { label: role });
+    for (const u of USERS.filter(u => u.role === role))
+      g.append(el("option", { value: u.id, text: u.name + (u.department ? " (" + u.department + ")" : "") +
+        (u.trust != null ? " - trust " + u.trust + (u.probation ? " (new)" : "") : "") }));
+    sel.append(g);
+  }
+  const want = selectId || Number(load("rf_user")) || (USERS[0] && USERS[0].id);
+  ME = USERS.find(u => u.id === Number(want)) || USERS[0];
+  sel.value = ME.id;
+}
+document.getElementById("userSel").addEventListener("change", async e => { store("rf_user", e.target.value); await loadUsers(Number(e.target.value)); render(); });
+document.getElementById("newStudent").addEventListener("click", async () => { const u = await api("POST", "/api/users/new_student"); store("rf_user", u.id); await loadUsers(u.id); render(); say("Created and switched to " + u.name); });
+document.getElementById("resetAll").addEventListener("click", async () => { await api("POST", "/api/reset"); store("rf_user", ""); await loadUsers(); render(); say("All data reset and reseeded"); });
+
+// ---------------- issue card
+function issueCard(i, extra) {
+  const c = el("div", { class: "card " + i.priority + (i.confidential ? " conf" : "") });
+  c.append(el("div", {}, el("b", { text: "#" + i.id + " " + i.summary }), i.confidential ? el("b", { text: "  [CONFIDENTIAL]" }) : null));
+  c.append(el("div", { class: "meta" },
+    el("span", { text: "Department: " + i.department }), el("span", { text: "Location: " + i.location }),
+    el("span", { text: "Priority: " + i.priority.toUpperCase() }), el("span", { text: "Status: " + i.status }),
+    i.me_too_count != null ? el("span", { text: "Me too: " + i.me_too_count + " (" + i.affected_students + " affected)" }) : null,
+    i.reporter ? el("span", { text: "Reporter: " + i.reporter }) : null,
+    i.reopen_count ? el("span", { text: "Reopened " + i.reopen_count + "x" }) : null));
+  c.append(el("div", { text: "Reason: " + i.reason }));
+  const d = el("details", {}, el("summary", { text: "Why this priority?" }), el("ul", {}, i.why_priority.map(l => el("li", { text: l }))));
+  if (openDetails.has(i.id)) d.open = true;
+  d.addEventListener("toggle", () => d.open ? openDetails.add(i.id) : openDetails.delete(i.id));
+  c.append(d);
+  if (i.verification) {
+    const v = i.verification;
+    c.append(el("div", { class: "muted", text: `Verification round ${v.round}: ${v.confirms} confirm (weight ${v.confirm_weight}) vs ${v.disputes} dispute (weight ${v.dispute_weight}). Rule: ${v.rule}` }));
+  }
+  if (extra) c.append(extra);
+  return c;
+}
+function section(title, ...kids) { return el("section", {}, el("h2", { text: title }), ...kids); }
+function list(items, mk, empty) { return items.length ? items.map(mk) : [el("div", { class: "muted", text: empty || "nothing here" })]; }
+
+async function trustPanel(sid, target) {
+  const t = await api("GET", "/api/trust/" + sid);
+  target.textContent = "";
+  target.append(el("div", { text: `${t.student.name}: score ${t.score} = ${t.start} + (${t.sum_of_deltas}) -> weight ${t.weight}` }),
+    el("div", { class: "muted", text: t.formula }),
+    el("ul", {}, list(t.events, e => el("li", { text: (e.delta > 0 ? "+" : "") + e.delta + "  " + e.reason + "  (" + new Date(e.created_at * 1000).toLocaleString() + ")" }), "no events yet (score is the starting 50)")));
+}
+
+// ---------------- views
+let refreshers = [];
+function render() {
+  const main = document.getElementById("main"); main.textContent = ""; refreshers = [];
+  document.getElementById("whoami").textContent = "Acting as: " + ME.name + " [" + ME.role + "]";
+  if (ME.role === "student") renderStudent(main);
+  else if (ME.role === "staff") renderStaff(main);
+  else renderAdmin(main);
+  refresh();
+}
+async function refresh() {
+  try { await loadUsers(ME.id); } catch (e) {}
+  for (const f of refreshers) { try { await f(); } catch (e) { say("Error: " + e.message, true); } } }
+
+function renderStudent(main) {
+  const ta = el("textarea", { placeholder: "Describe the problem and where it is (English / Roman Urdu ok)" });
+  const out = el("div");
+  main.append(section("Report a problem", ta, el("button", { text: "Submit report", on: { click: async () => {
+    const r = await act(() => api("POST", "/api/reports", { text: ta.value }));
+    if (r) { ta.value = ""; out.textContent = ""; out.append(el("div", { text: `Result: ${r.status} (triage: ${r.triage_source}${r.injection_attempt ? ", instructions in your report were ignored and logged" : ""}). ${r.message || ""}` }));
+      if (r.issue) out.append(issueCard(r.issue)); }
+  } } }), out));
+
+  const clar = el("div"), verif = el("div"), mine = el("div"), boardDiv = el("div"), trust = el("div");
+  main.append(section("Needs clarification (which campus location?)", clar), section("Pending verification: was it really fixed?", verif),
+    section("My issues (reported or joined)", mine), section("Public board", boardDiv),
+    section("Why this score?", el("button", { text: "Show my trust history", on: { click: () => trustPanel(ME.id, trust) } }), trust));
+
+  refreshers.push(async () => {
+    const my = await api("GET", "/api/my");
+    clar.textContent = "";
+    clar.append(...list(my.needs_clarification, r => {
+      const sel = el("select", {}, my.valid_locations.map(l => el("option", { value: l, text: l })));
+      return el("div", { class: "card" }, el("div", { text: "Report #" + r.id + ": " + r.text }),
+        el("div", { class: "muted", text: "We could not match " + (r.location_mentioned ? "'" + r.location_mentioned + "'" : "a location") + ". Pick the real place:" }),
+        sel, el("button", { text: "Route it", on: { click: () => act(() => api("POST", `/api/reports/${r.id}/clarify`, { location: sel.value })) } }));
+    }));
+    mine.textContent = ""; mine.append(...list(my.issues, i => issueCard(i)));
+    const v = await api("GET", "/api/verifications");
+    verif.textContent = "";
+    verif.append(...list(v, i => issueCard(i, el("div", {},
+      el("button", { text: "Confirm fixed", on: { click: () => act(() => api("POST", `/api/issues/${i.id}/vote`, { vote: "confirm" })) } }),
+      el("button", { text: "Dispute (still broken)", on: { click: () => act(() => api("POST", `/api/issues/${i.id}/vote`, { vote: "dispute" })) } })))));
+    const b = await api("GET", "/api/board");
+    boardDiv.textContent = "";
+    boardDiv.append(...list(b, i => issueCard(i, (!i.is_mine && ["open", "in_progress", "pending_verification"].includes(i.status))
+      ? el("button", { text: "Me too", on: { click: () => act(() => api("POST", `/api/issues/${i.id}/metoo`)) } }) : null)));
+  });
+}
+
+function staffControls(i, isAdmin) {
+  const box = el("div"), reports = el("div");
+  if (["open"].includes(i.status)) box.append(el("button", { text: "Mark in progress", on: { click: () => act(() => api("POST", `/api/issues/${i.id}/status`, { status: "in_progress" })) } }));
+  if (["open", "in_progress"].includes(i.status)) box.append(el("button", { text: "Mark resolved", on: { click: () => act(() => api("POST", `/api/issues/${i.id}/status`, { status: "resolved" })) } }));
+  if (isAdmin && i.status === "pending_verification") box.append(el("button", { text: "Finalize verification", on: { click: () => act(() => api("POST", `/api/issues/${i.id}/finalize`)) } }));
+  box.append(el("button", { text: "Show reports / flag fake", on: { click: async () => {
+    const rs = await api("GET", `/api/issues/${i.id}/reports`); reports.textContent = "";
+    reports.append(...list(rs, r => el("div", { class: "muted" }, "Report #" + r.report_id + ": " + r.text + (r.injection_attempt ? " [injection attempt]" : "") + (r.flagged_fake ? " [FLAGGED]" : "") + " ",
+      r.flagged_fake ? null : el("button", { text: "Flag as fake/spam", on: { click: () => act(() => api("POST", `/api/reports/${r.report_id}/flag`)) } }))));
+  } } }), reports);
+  return box;
+}
+
+function renderStaff(main) {
+  const q = el("div");
+  main.append(section(ME.department + " department queue (sorted by priority)", q));
+  refreshers.push(async () => { const items = await api("GET", "/api/staff/queue"); q.textContent = ""; q.append(...list(items, i => issueCard(i, staffControls(i, false)))); });
+}
+
+function renderAdmin(main) {
+  const clar = el("div"), all = el("div"), trust = el("div");
+  const sel = el("select", {}, USERS.filter(u => u.role === "student").map(u => el("option", { value: u.id, text: u.name })));
+  main.append(section("Reports awaiting location (safety first, reporter hidden)", clar), section("All issues (including confidential)", all),
+    section("Trust log viewer", sel, el("button", { text: "Why this score?", on: { click: () => trustPanel(sel.value, trust) } }), trust));
+  refreshers.push(async () => {
+    const c = await api("GET", "/api/admin/clarifications"); clar.textContent = "";
+    clar.append(...list(c, r => el("div", { class: "card" + (r.is_safety ? " critical" : "") }, (r.is_safety ? "SAFETY: " : "") + "Report #" + r.report_id + " (" + r.category + "): " + r.text + " - place given: " + (r.mentioned_place || "none"),
+      el("button", { text: "Flag as fake/spam", on: { click: () => act(() => api("POST", `/api/reports/${r.report_id}/flag`)) } }))));
+    const items = await api("GET", "/api/admin/issues"); all.textContent = "";
+    all.append(...list(items, i => issueCard(i, staffControls(i, true))));
+  });
+}
+
+(async () => {
+  CFG = await api("GET", "/api/config");
+  document.getElementById("aiMode").textContent = CFG.ai_enabled ? "AI triage: ON (" + CFG.model + ")" : "AI triage: OFF (keyword rules)";
+  await loadUsers(); render();
+  setInterval(() => { if (document.activeElement.tagName !== "SELECT") refresh(); }, 5000);
+})();
+</script>
+</body>
+</html>
