@@ -111,7 +111,7 @@ INJECTION_NET = re.compile(
 CATEGORY_RULES = [  # (category, pattern) for non-safety, non-harassment categories, checked in order
     ("wifi", _rx([r"wi\s*fi+", r"wifii+", r"wify", r"internet", r"net\s+nahi", r"network", r"signals?",
                   r"router", r"connection", r"connectivity"])),
-    ("ac", _rx([r"ac", r"a\s*c", r"air\s*con\w*", r"aircon", r"cooling", r"too\s+hot", r"garmi", r"thand\w*",
+    ("ac", _rx([r"ac", r"a\s*c", r"air\s*con\w*", r"aircon", r"cooling", r"too\s+hot", r"garmi", r"thand[ai]?\s+nahi\w*", r"thandak",
                 r"heat", r"fans?", r"pankha"])),
     ("projector", _rx([r"projec?t[oe]r\w*", r"projektor", r"multimedia"])),
     ("power", _rx([r"bijli", r"power", r"electricity", r"load\s*shedding", r"lights?", r"no\s+light", r"light\s+nahi",
