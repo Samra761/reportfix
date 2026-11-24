@@ -28,7 +28,7 @@ export REPORTFIX_MODEL=claude-haiku-5-5  # optional (this is the default)
 python app.py                            # open http://127.0.0.1:8000
 ```
 
-In a second terminal: `python tests/attack_cases.py` runs 42 attack cases against the running app and prints PASS/FAIL. **It resets all data first.**
+In a second terminal: `python tests/attack_cases.py` runs 43 attack cases against the running app and prints PASS/FAIL. **It resets all data first.**
 
 The top bar always offers three things: switch to any user, **New student**, and **Reset all data**. Reset reseeds five students with different trust levels (Ayesha 90, Bilal 65, Sara 50, Hamza 30, Zain 10), one staff member per department, and one admin.
 
@@ -96,4 +96,4 @@ The AI is called once per report. The student's text sits inside a `<<<REPORT_DA
 - Typo tolerance is an explicit alias list in `config.py`, not fuzzy matching. That's by design ("no guessing"), but unseen misspellings of place names fall back to clarification, or to the AI if it's enabled.
 - The verification window auto-close runs lazily when lists are loaded, not on a timer.
 - SQLite and a global lock are fine for a demo but not for production load.
-- The attack suite was run green (42/42) in keyword-rules mode. With an API key, AI answers can vary, but code-side guards (validation, safety net, location checks, category-checked merges) keep the safety-critical cases deterministic.
+- The attack suite was run green (43/43) in keyword-rules mode. With an API key, AI answers can vary, but code-side guards (validation, safety net, location checks, category-checked merges) keep the safety-critical cases deterministic.

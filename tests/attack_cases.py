@@ -265,6 +265,15 @@ def _():
     assert r["issue"]["id"] not in {i["id"] for i in ok("GET", "/api/staff/queue", U["Library Staff"])}
 
 
+@case("Other harassment wording (teasing, following, gaaliyan) is also confidential")
+def _():
+    for t in ["a senior keeps teasing me in EE Lab 2", "he is following me after class near the Library",
+              "larke gaaliyan dete hain cafeteria mein"]:
+        r = report("Sara", t)
+        assert r["status"] == "confidential", (t, r)
+        assert r["issue"]["id"] not in {i["id"] for i in ok("GET", "/api/board", U["Bilal"])}
+
+
 # ------------------------------------------------------------------ permissions
 @case("Staff cannot see or change another department's issues")
 def _():

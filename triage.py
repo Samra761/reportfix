@@ -95,7 +95,13 @@ SAFETY_NET = [  # (category, pattern) -- English + Roman Urdu. Checked in this o
 HARASSMENT_NET = _rx([r"harass\w*", r"ragging", r"ragged", r"rag\s+(?:me|us|him|her|kar\w*)", r"bully\w*",
                       r"bullie\w*", r"tang\s+kar\w*", r"tang\s+kiya", r"blackmail\w*", r"threaten\w*", r"dhamki\w*",
                       r"stalk\w*", r"chhe?d\s*(?:rahe|raha|te)", r"eve\s+teas\w*", r"inappropriately\s+touch\w*",
-                      r"touched\s+me", r"molest\w*"])
+                      r"touched\s+me", r"molest\w*",
+                      r"teas(?:e|es|ed|ing)\s+(?:me|us|her|him|girls?|students?)", r"eve\s*teas\w*", r"misbehav\w*", r"abus(?:e|ed|es|ing|ive)\s+(?:me|us|her|him)",
+                      r"verbal\w*\s+abus\w*", r"sexual\w*", r"inappropriate\w*", r"following\s+me", r"followed\s+me", r"hit\s+me", r"beat\s+me",
+                      r"slapped\s+me", r"threat\w*", r"intimidat\w*", r"insult\w*\s+(?:me|us|her|him)", r"humiliat\w*", r"discriminat\w*",
+                      r"(?:mujhe|hamein|humein|usko|use)\s+(?:\w+\s+){0,2}pareshan\s+kar\w*", r"gaal[iy]\w*", r"galiy[ao]n", r"maar\s+(?:rahe|raha|diya|di|ne)\w*",
+                      r"maara", r"peet(?:a|ti|te|ai|na)\b", r"chher\w*", r"chhed\w*", r"cheda", r"ghoor\w*", r"darr?a\s+(?:rahe|raha)\w*", r"zabardasti",
+                      r"badtameezi", r"bad\s*tameez\w*"])
 INJECTION_NET = re.compile(
     r"ignore\s+(?:all\s+|any\s+|the\s+|your\s+|my\s+)?(?:previous\s+|prior\s+|above\s+|earlier\s+|system\s+)?"
     r"(?:instructions?|rules?|prompts?|guidelines)"
